@@ -1,7 +1,0 @@
-name = Trash Track
-description = View Montreal trash schedules
-dependencies[] = content
-dependencies[] = calendar
-dependencies[] = date
-core = 6.x
- 
