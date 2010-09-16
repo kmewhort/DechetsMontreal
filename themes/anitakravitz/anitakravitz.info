@@ -1,0 +1,25 @@
+; $Id: anitakravitz.info,v 1.1 2008/07/08 07:54:40 intertextual Exp $
+
+name = Anita Kravitz
+description = XHTML & CSS with a single bar on the right.
+core = 6.x
+engine = phptemplate
+regions[sidebar_right] = Right sidebar
+regions[content_top] = Content Top
+regions[content_bottom] = Content Bottom
+regions[footer] = Footer
+features[] = logo
+features[] = favicon
+features[] = name
+features[] = slogan
+features[] = mission
+features[] = node_user_picture
+features[] = comment_user_picture
+features[] = primary_links
+stylesheets[all][] = style.css
+; Information added by drupal.org packaging script on 2010-07-11
+version = "6.x-1.x-dev"
+core = "6.x"
+project = "anitakravitz"
+datestamp = "1278833404"
+

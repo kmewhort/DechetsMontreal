@@ -1,0 +1,74 @@
+/** AnitaKravitz 1.0
+* $Id: layout.css,v 1.1 2008/07/08 07:54:40 intertextual Exp $
+*/
+
+#container {
+	margin: 0 auto;
+	padding:0;
+	width:960px;
+}
+
+#menu{
+	margin: 0 auto;
+	padding:0;
+	width:1003px;
+}
+
+/*----------header----------*/
+
+
+#header {
+    background-image:url('images/topregion-bg.png');
+    background-repeat:repeat-x;
+	clear:both;
+	height:114px;
+	margin:0 auto;
+	padding:0;
+	width:1003px;
+}
+
+
+/*----------main content----------*/
+#mainContent
+{
+	float:left;
+	margin:0;
+	overflow:hidden;
+	padding:1em 0 4em;
+/*	width is defined with the _get_mainContent_width function in template.php */
+}
+
+
+/*----------side bars----------*/
+#sideBars-bg
+{
+	background-color: #fff;
+	float: right;
+/*	width is defined with the _get_sideBars_width function in template.php */
+}
+
+#sideBars
+{
+	float:left;
+/*	width is defined with the _get_sideBars_width function in template.php */
+}
+
+#rightSidebar
+{
+	float:left;
+	margin:0;
+	padding:0.75em 0 0 1.45em;
+	width:280px;
+}
+
+
+/*----------footer----------*/
+#footer
+{
+	border-top:solid 1px #8ff;
+	clear:both;
+	margin:1em auto;
+	padding-top:1em;
+	text-align:center;
+	width:950px;
+}

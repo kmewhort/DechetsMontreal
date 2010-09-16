@@ -1,0 +1,44 @@
+<?php
+/**
+ *   Drupal Module for retrieving & parsing trash and recycling schedules
+ *   for Montreal (as used by www.dechetsmontreal.ca).
+ *
+ *   © 2010 Kent Mewhort. This module is distributed under the terms of the
+ *   GNU General Public License Version 3 <http://www.gnu.org/licenses/gpl.html>.
+ *
+ **/
+
+/**
+ * Implementation of hook_install().
+ */
+function trash_track_install() {
+	// load CCK content_copy
+	require_once(drupal_get_path('module', 'content') . '/modules/content_copy/content_copy.module'{;
+
+	// load CCK and view definitions
+	module_load_include('inc', 'trash_track', 'trash_track_cck');
+	module_load_include('inc', 'trash_track', 'trash_track_view');
+		
+	// import the schedule type
+	$content = _trash_track_schedule_export();
+	$form_state['values']['type_name'] = 'trash_schedule';
+	$form_state['values']['macro'] = '$content = ' . var_export($content, TRUE) . ';';
+	drupal_execute('content_copy_import_form', $form_state);
+	
+	// import the collection type
+	$content = _trash_track_collection_export();
+	$form_state['values']['type_name'] = 'trash_collection';
+	$form_state['values']['macro'] = '$content = ' . var_export($content, TRUE) . ';';
+	drupal_execute('content_copy_import_form', $form_state);
+	
+	// import the calendar view
+	_trash_track_view_export();
+	
+	content_clear_type_cache();
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function trash_track_uninstall() {
+}
