@@ -1,0 +1,22 @@
+{
+    "lat": 45.48,
+    "lon": -73.63,
+    
+	"pickups": [ 
+	    { 
+		"name": "Household Waste",
+		"icon": "icon_trash_sm.png",
+		"desc": "Collection takes place on *TUESDAYS* and *FRIDAYS*. Leave objects in designated area (street or back lane) between *9 p.m.* the evening before and *7 a.m.* on collection day."
+	    },
+	    { 
+		"name": "Recycling",
+		"icon": "icon_recycling_sm.png",
+		"desc": "Collection takes place on *TUESDAYS*. Take out recycling bins between *9 p.m.* the evening before and *7 a.m.* on collection day."
+	    },
+	    {
+		"name": "Large Objects",
+		"icon": "icon_large_sm.png",
+		"desc": "Collection takes place on *FRIDAYS*. Leave objects in designated area (street or lane) between *9 p.m.* the evening before and *7 a.m.* on collection day. Attention, 1m3 only."
+	    } 
+	]
+}

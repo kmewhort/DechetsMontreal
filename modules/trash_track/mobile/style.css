@@ -1,0 +1,14 @@
+/* General */
+a { text-decoration: none; }
+a:hover { text-decoration: underline; }
+td { padding: 5px; }
+/* Header */
+#collection_times { display: none; }
+#map { text-align: center; }
+/* Error msg */
+.address_error {
+    background: none repeat scroll 0 0 #FFCCCC;
+    color: #220000;
+    padding: 2px;
+    border: 1px solid #DD7777;
+}
