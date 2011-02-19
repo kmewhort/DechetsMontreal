@@ -91,6 +91,7 @@ $(document).ready(function () {
 		return false; 
 	    })
 	    .complete(function() { 
+		$('#anchor').focus();
 		$('#submit_button').val('Lookup');
 		$('#submit_button').css('color', "#000");
 	    });
