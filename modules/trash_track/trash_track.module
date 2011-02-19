@@ -3,7 +3,7 @@
  *   Drupal Module for retrieving & parsing trash and recycling schedules
  *   for Montreal (as used by www.dechetsmontreal.ca).
  *
- *   Â© 2010 Kent Mewhort. This module is distributed under the terms of the
+ *   © 2010 Kent Mewhort. This module is distributed under the terms of the
  *   GNU General Public License Version 3 <http://www.gnu.org/licenses/gpl.html>.
  *
  **/
@@ -20,6 +20,13 @@ function trash_track_menu() {
   	 'access arguments' => array('access content'),
   	 'type' => MENU_CALLBACK,
   );
+  // JSON schedule lookup
+  $items['json'] = array(
+  	 'title' => 'Lookup',
+  	 'page callback' => 'track_track_lookup_json',
+  	 'access arguments' => array('access content'),
+  	 'type' => MENU_CALLBACK,
+  );
   
   return $items;
 }
@@ -29,7 +36,7 @@ function trash_track_menu() {
  */
 function trash_track_node_operations() {
   $operations = array(
-  	 'track_track_retrieve' => array(
+    'track_track_retrieve' => array(
       'label' => t('Trash: Retrieve raw schedule'),
       'callback' => 'trash_track_bulk_retrieve_schedule'),
     'track_track_parse' => array(
@@ -70,24 +77,93 @@ function trash_track_lookup_form() {
 // the postal code from Google Geocoder API)
 function trash_track_lookup_form_validate($form, &$form_state) {
 	$form_state['values']['postalcode'] = '';
+	$returnVal = trash_track_address_to_postal_code($_POST['address'], $form_state['values']);
+	if($returnVal){
+	    form_set_error('address', $returnVal);
+	}
+}
+
+// redirect to the schedule, creating it if necessary
+function trash_track_lookup_form_submit($form, &$form_state) {
+	// store the address to the session variable to propagate this info
+	// through the page redirect
+  	$_SESSION['trash_track_address'] = $form_state['values']['address'];
+  	
+  	// get the schedule nid
+  	$scheduleNid = trash_track_get_schedule($form_state['values']['postalcode']);
+  	
+	// redirect to the schedule
+	$form_state['redirect'] = 'schedules/'. $form_state['values']['postalcode'];
+}
+
+// Return a schedule in JSON format
+function track_track_lookup_json(){
+	$address = $_GET['address'];
+	$startDate = $_GET['start'];
+	$endDate = $_GET['end'];
+	
+	$json = array();
+	$json['status'] = 'SUCCESS';
+	
+	// input address -> formatted address / postal code
+	$returnVal = trash_track_address_to_postal_code($address, $formattedAddress);
+	if($returnVal){
+		$json['status'] = $returnVal;
+	}
+	else{
+		$json = array_merge($json, $formattedAddress);
+		
+		// get the schedule
+		$nid = trash_track_get_schedule($formattedAddress['postalcode']);
+		$scheduleNode = node_load($nid, null, true);
+		
+		// get each collection
+		foreach($scheduleNode->field_collection_refs as $collectionNid){
+			$collectionNode = node_load($collectionNid['nid'], null, true);
+			$collectionInfo = array();
+			$collectionInfo['type'] = $collectionNode->field_collection_type_nice[0]['value'];
+			$collectionInfo['icon'] = 'icon_' . $collectionNode->field_collection_type[0]['value'] . '_sm.png';
+			$collectionInfo['desc'] = $collectionNode->body;
+			
+			$dates = array();
+			foreach($collectionNode->field_collection_dates as $date){
+				if((!empty($startDate) && strtotime($date['value']) >= $startDate) &&
+					(!empty($endDate) && strtotime($date['value']) <= $endDate)){
+					$collectionInfo['dates'][] = $date;
+				}
+			}
+			
+			
+			$json['collections'][] = $collectionInfo;
+		}
+	}
+	header("Content-type: application/json");
+	echo json_encode($json);
+}
+
+// Validates an input address and uses the Google Geocoder API to convert an input address
+// to a formatted address (array of address, postalcode, lat, long).
+// Returns 0 upon success or an error code upon failure.
+function trash_track_address_to_postal_code($input_address,  &$formatted_address){
+	$formatted_address['postalcode'] = '';
 	
 	// if the input is not a postal code, lookup from Google Geocoder API
-	$isPostalCode = preg_match('/\A(\w\d\w)\s*(\d\w\d)\Z/',
-		trim($_POST['address']), $matches);
+	$isPostalCode = /* Always lookup to get lat/lon 
+		preg_match('/\A(\w\d\w)\s*(\d\w\d)\Z/',
+		trim(), $matches); */
+		false;
+
 	if(!$isPostalCode) {
-		$form_state['values']['postalcode'] = '';
-		
 		// execute the Google Geocoder request
 		$addressInfo = null;
 		$geoData = file_get_contents(
 			'http://maps.google.com/maps/api/geocode/json?address=' .
-			urlencode($_POST['address']) .
+			urlencode($input_address) .
 			'&sensor=false');
 		if(!$geoData || $geoData == '' ||
 		   !($addressInfo = json_decode($geoData)) ||
 		   $addressInfo->status != 'OK') {
-			form_set_error('address', t("Unable to locate address. Please try entering your postal code instead."));	
-			return;
+			return t("Unable to locate address. Please try entering your postal code instead.");	
 		}
 
 		// for each address match
@@ -112,38 +188,37 @@ function trash_track_lookup_form_validate($form, &$form_state) {
 			
 			// break if we've found a postal code in Quebec
 			if($inQuebec && $postalCode){
-				$form_state['values']['address'] = $addressInfo->formatted_address;
-				$form_state['values']['postalcode'] =
+				$formatted_address['address'] = $addressInfo->formatted_address;
+				$formatted_address['postalcode'] =
 					strtoupper(preg_replace('/\s/', '', $postalCode));
+				$formatted_address['geometry'] = $addressInfo->geometry;
 				break;
 			}
 		}
 
-		if($form_state['values']['postalcode'] == ''){
-			form_set_error('address', t("Unable to locate address. Please try entering your postal code instead."));	
-			return;
+		if(empty($formatted_address['postalcode'])){
+			return t("Unable to locate address. Please try entering your postal code instead.");	
 		}
 	}
 	else {
-		$form_state['values']['postalcode'] = strtoupper($matches[1] . $matches[2]);
+		$formatted_address['postalcode'] = strtoupper($matches[1] . $matches[2]);
 	}
 	
 	// check whether the postal code is in montreal (this is a general area check -> just
 	// verify that it starts with a H)
-	if(substr($form_state['values']['postalcode'], 0, 1) != 'H'){
-		form_set_error('address', t("Address must be within Montreal."));
+	if(substr($formatted_address['postalcode'], 0, 1) != 'H'){
+		return t("Address must be within Montreal.");
 	}
+	return 0;
 }
 
-// redirect to the schedule, creating it if necessary
-function trash_track_lookup_form_submit($form, &$form_state) {
-	
-	// set the address session variable to the value entered
-  	$_SESSION['trash_track_address'] = $form_state['values']['address'];
   	
+// get the schedule nid corresponding to a postal code, creating the schedule node if it
+// does not already exist
+function trash_track_get_schedule($postal_code){
 	// check whether a schedule for this postal code exists
 	$result = db_query("SELECT nid, changed FROM {node} WHERE type = 'trash_schedule' AND title = '%s'",
-		$form_state['values']['postalcode']);
+		$postal_code);
 		
 	$scheduleNid = '';
 	if($row = db_fetch_array($result)) {
@@ -163,12 +238,18 @@ function trash_track_lookup_form_submit($form, &$form_state) {
 			}
 		}
 		
+		// if the node is more than a month old, update the schedule
+		if($row['changed'] < (time()-30*24*3600)){
+			node_delete($row['nid']);
+			$scheduleNid = '';
+		}
+		
 	}
-	else{
+	if(empty($scheduleNid)){
 		// if no schedule exists, create a new node for the schedule
 		$node = (object) NULL;
 		$node->type = 'trash_schedule';
-		$node->title = $form_state['values']['postalcode'];
+		$node->title = $postal_code;
 		$node = node_submit($node);
 		$node->uid = 1;
 		node_save($node);
@@ -180,9 +261,7 @@ function trash_track_lookup_form_submit($form, &$form_state) {
 		
 		$scheduleNid = $node->nid;
 	}
-	
-	// redirect to the schedule
-	$form_state['redirect'] = 'schedules/'. $form_state['values']['postalcode'];
+	return $scheduleNid;
 }
 
 function trash_track_bulk_retrieve_schedule($nids){
@@ -195,39 +274,39 @@ function trash_track_bulk_retrieve_schedule($nids){
 
 // retrieve the raw trash schedule from the city website
 function trash_track_retrieve_schedule(&$node){
-		$postalCode = $node->title;
+	$postalCode = $node->title;
 		
-		if(!$postalCode || $postalCode == '')
-			continue;
+	if(!$postalCode || $postalCode == '')
+		return;
 		
-	 	// open portal page
-		$cookieJar = null;
-		trash_track_get_page('http://ville.montreal.qc.ca/portal/page?_pageid=3716,4153912&_dad=portal&_schema=PORTAL',
-	 		$cookieJar);
+	 // open portal page
+	$cookieJar = null;
+	trash_track_get_page('http://ville.montreal.qc.ca/portal/page?_pageid=3716,4153912&_dad=portal&_schema=PORTAL',
+	 	$cookieJar);
 
-	 	// get the schedule (post the postal code and simulated mouse position)
-	 	$url = 'http://ville.montreal.qc.ca/portal/page?_pageid=3716,4153912&_dad=portal&_schema=PORTAL'
-	 		. '&ts=' . time();
-	 	$pageresult = trash_track_get_page(
-	   	$url,
-	 		$cookieJar,	
-	 		array(
-	 			'param1' => $postalCode,
-	 			'submit.x' => rand(5,17),
-	 			'submit.y' => rand(5,17))
-	 		);
+	 // get the schedule (post the postal code and simulated mouse position)
+	 $url = 'http://ville.montreal.qc.ca/portal/page?_pageid=3716,4153912&_dad=portal&_schema=PORTAL'
+	 	. '&ts=' . time();
+	 $pageresult = trash_track_get_page(
+	  	$url,
+	 	$cookieJar,	
+	 	array(
+	 		'param1' => $postalCode,
+	 		'submit.x' => rand(5,17),
+	 		'submit.y' => rand(5,17))
+	 	);
 	 	
-	 	// if there's already a raw schedule file, delete it
-		if($node->field_raw_data[0]) {
-			$node->field_raw_data = array();
-			node_save($node);
-		 }
+	 // if there's already a raw schedule file, delete it
+	if($node->field_raw_data[0]) {
+		$node->field_raw_data = array();
+		node_save($node);
+	 }
 		 
-	 	 // save the raw schedule as a file
-		 $tempFile = file_directory_temp() . '/' .  $postalCode . '.html';
-		 $fh = fopen($tempFile, "w");
-		 fwrite($fh, $pageresult);
-		 fclose($fh);
+	  // save the raw schedule as a file
+	 $tempFile = file_directory_temp() . '/' .  $postalCode . '.html';
+	 $fh = fopen($tempFile, "w");
+	 fwrite($fh, $pageresult);
+	 fclose($fh);
    	 $node->field_raw_data[0] = field_file_save_file(
    		$tempFile, array(), file_directory_path());
 }
