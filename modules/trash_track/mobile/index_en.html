@@ -1,0 +1,40 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>D&eacute;chets Mtl</title>
+    <link href="style.css" rel="stylesheet" type="text/css" />    
+    <link rel="apple-touch-icon-precomposed" href="dechets-icon-iphone.png" />
+    <link rel="apple-touch-icon" href="dechets-icon-iphone.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="dechets-icon-iphone4.png" />
+    <script type="text/javascript" src="jquery-1.5.min.js" type="text/javascript"></script>
+    <script type="text/javascript" src="bookmark_bubble.js" type="text/javascript"></script>
+    <script type="text/javascript" src="dechets.js" type="text/javascript"></script>
+    <meta name = "viewport" content = "initial-scale=1.0; maximum-scale=1.0; user-scalable=no;"/>
+  </head>
+  <body>
+    <center><img src="dechets-logo-iphone.gif"/ alt="D&eacute;chets Montr&eacute;al"></center>
+    <center>
+      <form id="lookup_form" action="/en/json">
+	<input id="postal_code" type="search" placeholder="Address or postal code" autocorrect="off" autocapitalize="off" required>
+	<input id="submit_button" type="submit" class="submit" value="Lookup" data-active-value="Lookup" data-wait-value="Working...">
+	<a href="#" id="anchor"></a>
+      </form>
+    </center>
+    <div id="intro">
+    </div>
+    <div id="error">
+    </div>
+    <div id="collection_times">
+      <div id="map">
+
+      </div>
+      <div id="collection_times_header">
+	<p><b>Collection times for '<span id="search_term"></span>' on week of <span id="search_week">:</span></b></p>
+      </div>
+      <div id="collection_times_content">
+      </div>
+    </div>
+    <div id="footer">
+      <center><p><a href="http://dechetsmontreal.ca/">Full Site</a></p></center>
+  </body>
+</html>

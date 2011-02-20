@@ -48,6 +48,17 @@ function trash_track_node_operations() {
 
 // primary form to lookup trash by address
 function trash_track_lookup_form() {
+	global $language;
+	$lang = $language->language;
+	
+	// if the browser is a mobile phone, redirect to the mobile form page
+	$browserInfo = browscap_get_browser();
+	if($browserInfo['ismobiledevice']){
+		$url = url(drupal_get_path('module', 'trash_track') . "/mobile/index_$lang.html",
+			array('absolute' => TRUE, 'language' => ''));
+		drupal_goto($url);
+	}
+	
 	$form['address'] = array(
     	'#type' => 'textfield',
     	'#title' => t("Address or postal code"),
@@ -216,12 +227,15 @@ function trash_track_address_to_postal_code($input_address,  &$formatted_address
 // get the schedule nid corresponding to a postal code, creating the schedule node if it
 // does not already exist
 function trash_track_get_schedule($postal_code){
+	global $language;
+	$lang = $language->language;
+	
 	$scheduleNid = null;
 	$node = null;
 	
-	// check whether a schedule for this postal code exists
+	// check whether a schedule for this postal code and language exists
 	lock_acquire('trash_track_schedule_exists_check');
-	$result = db_query("SELECT nid, status, changed FROM {node} WHERE type = 'trash_schedule' AND title = '%s'",
+	$result = db_query("SELECT nid, status, changed FROM {node} WHERE type = 'trash_schedule' AND title = '%s' AND language = '$lang'",
 		$postal_code);
 	$row = db_fetch_array($result);
 	
@@ -240,6 +254,7 @@ function trash_track_get_schedule($postal_code){
 		$node = (object) NULL;
 		$node->type = 'trash_schedule';
 		$node->title = $postal_code;
+		$node->language = $lang;
 		$node = node_submit($node);
 		$node->uid = 1;
 		$node->status = 0;
@@ -282,18 +297,23 @@ function trash_track_bulk_retrieve_schedule($nids){
 
 // retrieve the raw trash schedule from the city website
 function trash_track_retrieve_schedule(&$node){
+	global $language;
+	
 	$postalCode = $node->title;
-		
 	if(!$postalCode || $postalCode == '')
 		return;
 		
-	 // open portal page
+	// open portal page for the appropriate language
 	$cookieJar = null;
-	trash_track_get_page('http://ville.montreal.qc.ca/portal/page?_pageid=3716,4153912&_dad=portal&_schema=PORTAL',
-	 	$cookieJar);
+	$villeMontrealPageId = '3697,4150092';
+	if($language->language == 'en'){
+		$villeMontrealPageId = '3716,4153912';
+	}
+	trash_track_get_page("http://ville.montreal.qc.ca/portal/page?_pageid=$villeMontrealPageId&_dad=portal&_schema=PORTAL",
+			$cookieJar);
 
 	 // get the schedule (post the postal code and simulated mouse position)
-	 $url = 'http://ville.montreal.qc.ca/portal/page?_pageid=3716,4153912&_dad=portal&_schema=PORTAL'
+	 $url = "http://ville.montreal.qc.ca/portal/page?_pageid=$villeMontrealPageId&_dad=portal&_schema=PORTAL"
 	 	. '&ts=' . time();
 	 $pageresult = trash_track_get_page(
 	  	$url,
@@ -311,7 +331,7 @@ function trash_track_retrieve_schedule(&$node){
 	 }
 		 
 	  // save the raw schedule as a file
-	 $tempFile = file_directory_temp() . '/' .  $postalCode . '.html';
+	 $tempFile = file_directory_temp() . '/' .  $postalCode . "_$lang" . '.html';
 	 $fh = fopen($tempFile, "w");
 	 fwrite($fh, $pageresult);
 	 fclose($fh);
@@ -329,21 +349,31 @@ function trash_track_bulk_parse_schedule($nids){
 
 // parse the raw trash schedule
 function trash_track_parse_schedule(&$node){
+	global $language;
+	$lang = $language->language;
 	
 	// types of collection info
 	$collectionTypes = array(
 	 		'garbage' => array(
 	 			'title_en' => 'Household waste',
-	 			'pattern_en' => '/>Collection of household waste<.*?sansmarge\'>(.*?)<\/span>/is'),
+	 			'title_fr' => 'Ordures ménagères',
+	 			'pattern_en' => '/>Collection of household waste<.*?sansmarge\'>(.*?)<\/span>/is',
+	 			'pattern_fr' => '/>Collecte des ordures ménagères<.*?sansmarge\'>(.*?)<\/span>/is'),
 	 		'recycling' => array(
 	 			'title_en' => 'Recycling',
-	 			'pattern_en' => '/>Collection of recyclable material<.*?sansmarge\'>(.*?)<\/span>/is'),
+	 			'title_fr' => 'Matières recyclables',
+	 			'pattern_en' => '/>Collection of recyclable material<.*?sansmarge\'>(.*?)<\/span>/is',
+	 			'pattern_fr' => '/>Collecte des matières recyclables<.*?sansmarge\'>(.*?)<\/span>/is'),
 	 		'large' => array(
 	 			'title_en' => 'Large Objects',
-	 			'pattern_en' => '/>Collection of large objects<.*?sansmarge\'>(.*?)<\/span>/is'),
+	 			'title_fr' => 'Objets volumineux',
+	 			'pattern_en' => '/>Collection of large objects<.*?sansmarge\'>(.*?)<\/span>/is',
+	 			'pattern_fr' => '/>Collecte des objets volumineux<.*?sansmarge\'>(.*?)<\/span>/is'),
 	 		'green' => array(
 	 			'title_en' => 'Green waste',
-	 			'pattern_en' => '/>Collection of green waste<.*?sansmarge\'>(.*?)<\/span>/is'),
+	 			'title_fr' => 'Résidus verts',
+	 			'pattern_en' => '/>Collection of green waste<.*?sansmarge\'>(.*?)<\/span>/is',
+	 			'pattern_fr' => '/>Collecte de résidus verts<.*?sansmarge\'>(.*?)<\/span>/is'),
 	 		);
 
 		// delete any existing collection nodes belonging to this schedule
@@ -355,32 +385,33 @@ function trash_track_parse_schedule(&$node){
 			}
 		}
 		$node->field_collection_refs = array();
+		
 		// delete any existing collection nodes for this postal code
-		$result = db_query("SELECT nid FROM {node} WHERE type = 'trash_collection' AND title = '%s'",
+		$result = db_query("SELECT nid FROM {node} WHERE type = 'trash_collection' AND title = '%s' AND language = '$lang'",
 			$node->title);
 		while($row = db_fetch_array($result)) {
 			node_delete($row['nid']);
 		}
 		
-		// open the raw english schedule
-		$rawScheduleEn = file_get_contents($node->field_raw_data[0]['filepath']);
+		// open the raw schedule
+		$rawSchedule = file_get_contents($node->field_raw_data[0]['filepath']);
 		
 		// parse each collection type
 	 	foreach($collectionTypes as $collectionType => $typeInfo){
-	 		if(preg_match($typeInfo['pattern_en'], $rawScheduleEn, $matches)){
+	 		if(preg_match($typeInfo["pattern_$lang"], $rawSchedule, $matches)){
 	 			// create a collection node
 	 			$colNode = (object) NULL;
 				$colNode->type = 'trash_collection';
 				$colNode->title = $node->title;
-				$colNode->body = $matches[1];
+				$colNode->body = utf8_encode($matches[1]);
 				
 				$colNode->field_collection_type[0]['value'] = $collectionType;
-				$colNode->field_collection_type_nice[0]['value'] = $typeInfo['title_en'];
-				
+				$colNode->field_collection_type_nice[0]['value'] = utf8_encode($typeInfo["title_$lang"]);
 				$colNode->field_collection_dates = trash_track_parse_dates($matches[1], $collectionType);
 				
 				$colNode = node_submit($colNode);
 				$colNode->uid = 1;
+				$colNode->language = $lang;
 				node_save($colNode);
 	 			
 	 			$node->field_collection_refs[] = array('nid' => $colNode->nid);
@@ -390,58 +421,87 @@ function trash_track_parse_schedule(&$node){
 
 // parse a single schedule collection message
 function trash_track_parse_dates($text, $collectionType){
-   $months = array(
-   	'January',
-   	'February',
-   	'March',
-   	'April',
-   	'May',
-   	'June',
-   	'July',
-   	'August',
-   	'September',
-   	'October',
-   	'November',
-   	'December');
+	global $language;
+	$lang = $language->language;
+	
+	$months = array(
+		'en' => array(
+			'January',
+			'February',
+			'March',
+			'April',
+			'May',
+			'June',
+			'July',
+			'August',
+			'September',
+			'October',
+			'November',
+			'December'),
+		'fr' => array(
+			'janvier',
+			'février',
+			'mars',
+			'avril',
+			'mai',
+			'juin',
+			'juillet',
+			'août',
+			'septembre',
+			'octobre',
+			'novembre',
+			'décembre'));
+	
 	$iCalDateMapping = array(
-		'SUNDAY' => 'SU',
-		'MONDAY' => 'MO',
-		'TUESDAY' => 'TU',
-		'WEDNESDAY' => 'WE',
-		'THURSDAY' => 'TH',
-		'FRIDAY' => 'FR',
-		'SATURDAY' => 'SA');
+		'en' => array(
+			'SUNDAY' => 'SU',
+			'MONDAY' => 'MO',
+			'TUESDAY' => 'TU',
+			'WEDNESDAY' => 'WE',
+			'THURSDAY' => 'TH',
+			'FRIDAY' => 'FR',
+			'SATURDAY' => 'SA'),
+		'fr' => array(
+			'DIMANCHE' => 'SU',
+			'LUNDI' => 'MO',
+			'MARDI' => 'TU',
+			'MERCREDI' => 'WE',
+			'JEUDI' => 'TH',
+			'VENDREDI' => 'FR',
+			'SAMEDI' => 'SA'));
 	$dates = array();
 	
-	// if the text contains "on the following", the schedule is only for the dates listed
-	if(preg_match('/on\s+the\s+following/', $text)){
-		// find each month, and all text up to the next semicolon or period
-		foreach($months as $month){
-			if(preg_match("/$month(.*?)[\;\.]/is", $text, $matches)){
-				// split tokens on spaces
-				$tokens = preg_split('/[\s,]+/', $matches[1], -1, PREG_SPLIT_NO_EMPTY);
-				if($tokens){
-					foreach($tokens as $tok){
-						// if the token's a number,  add it as a day of the month
-						if(is_numeric($tok)){
-							$datetimestamp = strtotime("$month $tok");
-							$dates[] = array('value' => date('Y-m-d 00:00:00', $datetimestamp));
-						}
-						// only other valid token following a month is an 'and'
-						else if($tok != 'and'){
-							break;
-						}
+	// check if the text contains months -- if so, the schedule is only for the dates listed;
+	// find each month, and all text up to the next semicolon or period
+	foreach($months[$lang] as $i => $month){
+		$regexp = "/(\d+\s((,\s)|(et\s)\d+)+\s*)$month/is";
+		if($lang == 'en')
+			$regexp = "/$month(.*?)[\;\.]/is";
+		
+		if(preg_match($regexp, $text, $matches)){
+			// split tokens on spaces
+			$tokens = preg_split('/[\s,]+/', $matches[1], -1, PREG_SPLIT_NO_EMPTY);
+			if($tokens){
+				foreach($tokens as $tok){
+					// if the token's a number,  add it as a day of the month
+					if(is_numeric($tok)){
+						$datetimestamp = strtotime($months['en'][$i] . " $tok");
+						$dates[] = array('value' => date('Y-m-d 00:00:00', $datetimestamp));
+					}
+					// only other valid token following a month is an 'and'
+					else if($tok != 'and' && $tok != 'et'){
+						break;
 					}
 				}
-			}  
-		}
+			}
+		}  
 	}
 	
 	// otherwise, schedule is for each day of the week listed
-	else{
+	if(empty($dates)){
 		// get the collection days
 		$days = array();
-		foreach($iCalDateMapping as $keyword => $iCalDay){
+		foreach($iCalDateMapping[$lang] as $keyword => $iCalDay){
 			if(preg_match('/' . $keyword . '/s', $text)){
 				$days[] = $iCalDay;
 			}

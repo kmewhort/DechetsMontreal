@@ -41,17 +41,18 @@ window.addEventListener('load', function() {
 $(document).ready(function () {
     $('form#lookup_form').submit(function() {
         var inputData = { address: $('input#postal_code').val() };
-	$('#submit_button').val('Working...');
+	$('#submit_button').val($('#submit_button').attr('data-wait-value'));
 	$('#submit_button').css('color', "#aaa");
 	$('div#collection_times').hide();
-	$.getJSON('json', inputData, function(data) {
-	    $('#submit_button').val('Lookup');
+	$.getJSON($('#lookup_form').attr('action'), inputData, function(data) {
+	    $('#submit_button').val($('#submit_button').attr('data-active-value'));
 	    $('#submit_button').css('color', "#000");
 	    
 	    if(data.status != 'SUCCESS') {
 	            $('div#error').html('<p class="error">' + data.status + '</p>');
 		return false;
 	    }
+	    $('div#error').empty();
 	    
 	    var latlng = data.geometry.location.lat + ',' + data.geometry.location.lng;
 	    var mapHTML = '<img src=\"http://maps.google.com/maps/api/staticmap?center=' + latlng;
@@ -92,7 +93,7 @@ $(document).ready(function () {
 	    })
 	    .complete(function() { 
 		$('#anchor').focus();
-		$('#submit_button').val('Lookup');
+		$('#submit_button').val($('#submit_button').attr('data-active-value'));
 		$('#submit_button').css('color', "#000");
 	    });
 	

@@ -14,9 +14,9 @@
   <body>
     <center><img src="dechets-logo-iphone.gif"/ alt="D&eacute;chets Montr&eacute;al"></center>
     <center>
-      <form id="lookup_form">
-	<input id="postal_code" type="search" placeholder="Address or postal code" autocorrect="off" autocapitalize="off" required>
-	<input id="submit_button" type="submit" class="submit" value="Lookup">
+      <form id="lookup_form" action="/fr/json">
+	<input id="postal_code" type="search" placeholder="Adresse ou code postal" autocorrect="off" autocapitalize="off" required>
+	<input id="submit_button" type="submit" class="submit" value="Recherche" data-active-value="Recherche" data-wait-value="Chargement...">
 	<a href="#" id="anchor"></a>
       </form>
     </center>
@@ -29,12 +29,12 @@
 
       </div>
       <div id="collection_times_header">
-	<p><b>Collection times for '<span id="search_term"></span>' on week of <span id="search_week">:</span></b></p>
+	<p><b>Les collectes de '<span id="search_term"></span>' pour la semaine du <span id="search_week">:</span></b></p>
       </div>
       <div id="collection_times_content">
       </div>
     </div>
     <div id="footer">
-      <center><p><a href="http://dechetsmontreal.ca/">Full Site</a></p></center>
+      <center><p><a href="http://dechetsmontreal.ca/">Site complet</a></p></center>
   </body>
 </html>
