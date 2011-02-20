@@ -216,49 +216,57 @@ function trash_track_address_to_postal_code($input_address,  &$formatted_address
 // get the schedule nid corresponding to a postal code, creating the schedule node if it
 // does not already exist
 function trash_track_get_schedule($postal_code){
+	$scheduleNid = null;
+	$node = null;
+	
 	// check whether a schedule for this postal code exists
-	$result = db_query("SELECT nid, changed FROM {node} WHERE type = 'trash_schedule' AND title = '%s'",
+	lock_acquire('trash_track_schedule_exists_check');
+	$result = db_query("SELECT nid, status, changed FROM {node} WHERE type = 'trash_schedule' AND title = '%s'",
 		$postal_code);
-		
-	$scheduleNid = '';
-	if($row = db_fetch_array($result)) {
-		$scheduleNid = $row['nid'];
-		
-		// if the node was just created, check whether processing is complete
-		// to guard against multiple clicks (and wait for completion if the node
-		// is still being processed)
-		if((time() - $row['changed']) <= 5){
-			for($i = 0; $i < 5; $i++){
-				$node = node_load($row['nid'], false, true);
-				if(!empty($node->field_collection_refs) &&
-					!empty($node->field_collection_refs[0]['nid'])){
-					break;
-				}
-				sleep(1);
-			}
-		}
-		
-		// if the node is more than a month old, update the schedule
-		if($row['changed'] < (time()-30*24*3600)){
-			node_delete($row['nid']);
-			$scheduleNid = '';
-		}
-		
+	$row = db_fetch_array($result);
+	
+	// if the node exists, but is more than a month old, delete it so
+	// the data is refreshed
+	if($row['changed'] < (time()-30*24*3600)){
+		node_delete($row['nid']);
+		$row = null;
 	}
-	if(empty($scheduleNid)){
-		// if no schedule exists, create a new node for the schedule
+	
+	// create a schedule if none exists
+	if($row){
+		$scheduleNid = $row['nid'];
+	}
+	else {
 		$node = (object) NULL;
 		$node->type = 'trash_schedule';
 		$node->title = $postal_code;
 		$node = node_submit($node);
 		$node->uid = 1;
+		$node->status = 0;
 		node_save($node);
+		$scheduleNid = $node->nid;
+	}
+	lock_release('trash_track_schedule_exists_check');
 		
-		// retrieve and parse the schedule
+	// if the node is not new
+	if(!$node){
+		// if processing is not complete (by another parallel process),
+		// simply wait for processing to complete
+		if($row['status'] == 0 && ((time() - $row['changed']) <= 15)){
+			for($i = 0; $i < 5; $i++){
+				$node = node_load($row['nid'], false, true);
+				if($node->status == 1)
+					return $scheduleNid;
+				sleep(1);
+			}
+		}
+	}
+	// else, retrieve and parse new schedules
+	else {	
 		trash_track_retrieve_schedule($node);
 		trash_track_parse_schedule($node);
-		node_save($node);
-		
+		$node->status = 1;
+		node_save($node);	
 		$scheduleNid = $node->nid;
 	}
 	return $scheduleNid;
